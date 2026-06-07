@@ -165,6 +165,9 @@
   .nav-links a:hover { color: var(--amber); border-color: var(--border2); }
   .nav-links a.hidem { display: inline; }
 
+  /* hide terminal text link on mobile — CTA button below is enough */
+  @media(max-width:680px) { #nav-open { display: none; } }
+
   /* Privy login button in nav */
   #privy-login-root {
     display: inline-flex;
@@ -228,7 +231,16 @@
   .x-link:hover { border-color: var(--amber); color: var(--amber); box-shadow: 0 0 14px var(--amber-glow); }
   .x-link svg { width: 12px; height: 12px; fill: currentColor; }
 
-  @media(max-width:680px) { .nav-links a.hidem { display: none; } }
+  @media(max-width:680px) {
+    .nav-links a.hidem { display: none; }
+    .wrap { padding: 0 16px; }
+    nav .wrap { height: 48px; }
+    .logo { font-size: 13px; }
+    .logo-tag { display: none; }
+    .privy-btn { padding: 7px 14px; font-size: 10px; }
+    .x-link { width: 30px; height: 30px; margin-left: 4px; }
+    .nav-links { gap: 4px; }
+  }
 
   /* ===== HERO ===== */
   .hero {
@@ -885,9 +897,16 @@
   .spin2::after { content: "▊"; animation: blink 0.5s steps(1) infinite; }
 
   @media(max-width:760px){
+    /* ── TERMINAL MOBILE ── */
     .term-main { grid-template-columns: 1fr; }
-    .hud { grid-template-columns: repeat(2, 1fr); }
+
+    /* HUD: show only 2 cells on mobile */
+    .hud { grid-template-columns: 1fr 1fr; }
     .hud .cell:nth-child(2) { border-right: none; }
+    .hud .cell:nth-child(3),
+    .hud .cell:nth-child(4) { display: none; }
+
+    /* tabs */
     .tabs {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -896,10 +915,10 @@
       flex-shrink: 0;
     }
     .tab {
-      padding: 12px 6px;
+      padding: 14px 4px;
       text-align: center;
       font-size: 10px;
-      letter-spacing: 0.2em;
+      letter-spacing: 0.14em;
       text-transform: uppercase;
       color: var(--text-dim);
       border-right: 1px solid var(--border);
@@ -907,14 +926,48 @@
       transition: .15s;
       background: transparent;
       font-family: inherit;
+      -webkit-tap-highlight-color: transparent;
     }
     .tab:last-child { border-right: none; }
-    .tab.active { color: var(--amber); background: rgba(255,184,0,0.04); box-shadow: inset 0 -2px 0 var(--amber); }
+    .tab.active { color: var(--amber); background: rgba(255,184,0,0.05); box-shadow: inset 0 -2px 0 var(--amber); }
+
+    /* panel visibility */
     .history, .console-panel, .preview-panel { display: none; }
     .history.show, .console-panel.show, .preview-panel.show { display: flex; }
     .history { border-right: none; }
     .preview-panel { border-left: none; }
-    button.run { flex: 1; padding: 11px; }
+
+    /* prompt zone */
+    .prompt-zone { padding: 10px 12px; }
+    .prompt-field { padding: 10px 12px; }
+    #input { font-size: 14px; }
+    button.run { flex: 1; padding: 12px; font-size: 12px; }
+
+    /* chips: single horizontal scrolling row */
+    .chips {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      padding-bottom: 2px;
+      gap: 6px;
+    }
+    .chips::-webkit-scrollbar { display: none; }
+    .chip { white-space: nowrap; flex-shrink: 0; padding: 7px 12px; font-size: 10px; }
+
+    /* hint hidden on mobile to save space */
+    .hint { display: none; }
+
+    /* footer: show only clock */
+    .term-foot { padding: 6px 14px; }
+    .term-foot span:first-child,
+    .term-foot span:last-child { display: none; }
+
+    /* hero top bar on mobile */
+    .hero-top-bar { display: none; }
+    .hero { padding: 40px 0 36px; }
+    .hero-left { padding: 28px 20px; }
+    .hero-right { padding: 20px 20px 28px; }
+    .hero-meta { grid-template-columns: 1fr 1fr; }
   }
 </style>
 </head>
@@ -931,8 +984,8 @@
       <a href="#what" class="hidem">// what</a>
       <a href="#how" class="hidem">// how</a>
       <a href="#engine" class="hidem">// engine</a>
-      <a href="#" id="nav-open">terminal</a>
-      <div id="privy-login-root"></div>
+      <a href="#" id="nav-open" class="hidem">terminal</a>
+      <div id="privy-login-root"><button class="privy-btn" id="privy-fallback">[ connect ]</button></div>
       <a class="x-link" href="https://x.com/StrideAgent" target="_blank" rel="noopener" title="@StrideAgent">
         <svg viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
       </a>
@@ -1218,6 +1271,8 @@ function PrivyApp() {
 
 const container = document.getElementById('privy-login-root');
 if (container) {
+  // remove plain-HTML fallback, mount React
+  container.innerHTML = '';
   const root = createRoot(container);
   root.render(React.createElement(PrivyApp));
 }
