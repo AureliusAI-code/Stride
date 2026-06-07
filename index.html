@@ -1199,29 +1199,39 @@
 
 <!-- =========== PRIVY AUTH =========== -->
 <script type="module">
-/*
- * Why direct URLs + ?deps=:
- * - importmap + @privy-io/react-auth@2.x fails because wagmi/viem/tanstack
- *   are missing from the map → bare specifier can't resolve at runtime.
- * - Using direct esm.sh URLs with ?deps= pins React to the SAME URL in both
- *   our code and inside Privy → single React instance → hooks work correctly.
- * - Privy v1.x only needs react + react-dom (no wagmi for email/google login).
- */
 (async () => {
   const container = document.getElementById('privy-login-root');
   if (!container) return;
+  const fallback = document.getElementById('privy-fallback');
+
+  // If user clicks fallback before React/Privy finishes loading, auto-trigger login once ready
+  let deferredLogin = false;
+  if (fallback) {
+    fallback.addEventListener('click', () => {
+      deferredLogin = true;
+      fallback.textContent = '...';
+      fallback.disabled = true;
+    });
+  }
 
   try {
     const { default: React } = await import('https://esm.sh/react@18.2.0');
     const { createRoot }     = await import('https://esm.sh/react-dom@18.2.0/client');
     const { PrivyProvider, usePrivy } = await import(
-      'https://esm.sh/@privy-io/react-auth@1.88.4?deps=react@18.2.0,react-dom@18.2.0'
+      'https://esm.sh/@privy-io/react-auth@1?deps=react@18.2.0,react-dom@18.2.0'
     );
 
     const h = React.createElement;
 
     function LoginButton() {
       const { ready, authenticated, user, login, logout } = usePrivy();
+
+      React.useEffect(() => {
+        if (ready && !authenticated && deferredLogin) {
+          deferredLogin = false;
+          login();
+        }
+      }, [ready, authenticated]);
 
       if (!ready) return h('button', { className: 'privy-btn', disabled: true, style: { opacity: .5 } }, '...');
 
@@ -1255,8 +1265,15 @@
     createRoot(container).render(h(App));
 
   } catch (err) {
-    console.error('[Privy] Failed to load:', err);
-    /* fallback [ LOGIN ] button stays in DOM — user sees it, clicks do nothing */
+    console.error('[Privy] load error:', err);
+    if (fallback) {
+      fallback.textContent = '[ LOGIN ]';
+      fallback.disabled = false;
+      fallback.onclick = () => {
+        fallback.textContent = '[ retrying… ]';
+        setTimeout(() => window.location.reload(), 400);
+      };
+    }
   }
 })();
 </script>
