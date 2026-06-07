@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>STRIDE // app foundry</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Fraunces:ital,opsz,wght@0,9..144,500;1,9..144,400&display=swap');
+
+  :root {
+    --bg: #04070f;
+    --bg-soft: #080d1a;
+    --panel: #070c18;
+    --panel-2: #0a1122;
+    --grid: rgba(80, 130, 220, 0.06);
+    --line: #15203a;
+    --line-bright: #26375c;
+    --cyan: #6fe3ff;
+    --cyan-2: #2fb4d9;
+    --cyan-dim: #3a7d92;
+    --cyan-glow: rgba(111, 227, 255, 0.32);
+    --ink: #aebfe0;
+    --ink-dim: #4a5878;
+    --paper: #d4e0f5;
+    --amber: #ffcf6f;
+    --red: #ff7a8a;
+    --green: #7fffc4;
+    --violet: #a98bff;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13.5px; line-height: 1.65;
+    overflow: hidden; position: relative;
+  }
+
+  /* layered atmosphere */
+  body::before {
+    content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 28px 28px;
+    mask-image: radial-gradient(ellipse 100% 100% at 50% 40%, #000 50%, transparent 100%);
+  }
+  body::after {
+    content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background:
+      radial-gradient(900px 460px at 82% -8%, rgba(111,227,255,0.10), transparent 60%),
+      radial-gradient(700px 500px at 8% 110%, rgba(169,139,255,0.07), transparent 60%),
+      radial-gradient(ellipse at center, transparent 58%, rgba(0,0,0,0.7) 100%);
+  }
+
+  canvas#stars { position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0.6; }
+
+  .sweep {
+    position: fixed; left: 0; right: 0; height: 160px; z-index: 0; pointer-events: none;
+    background: linear-gradient(180deg, transparent, rgba(111,227,255,0.035), transparent);
+    animation: sweep 11s linear infinite;
+  }
+  @keyframes sweep { from { top: -160px; } to { top: 100%; } }
+
+  /* ===== BOOT OVERLAY ===== */
+  #boot {
+    position: fixed; inset: 0; z-index: 200; background: var(--bg);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px;
+    transition: opacity 0.6s ease, visibility 0.6s;
+  }
+  #boot.gone { opacity: 0; visibility: hidden; }
+  .boot-logo {
+    font-size: clamp(38px, 11vw, 92px); font-weight: 700; letter-spacing: 0.22em;
+    color: var(--cyan); text-shadow: 0 0 40px var(--cyan-glow);
+    position: relative;
+  }
+  .boot-logo .scan {
+    position: absolute; inset: 0; overflow: hidden; color: var(--paper);
+    clip-path: inset(0 0 100% 0); animation: bootscan 1.8s ease-in-out forwards;
+  }
+  @keyframes bootscan { to { clip-path: inset(0 0 0 0); } }
+  .boot-sub { font-family: 'Fraunces', serif; font-style: italic; font-size: 17px; color: var(--ink-dim); letter-spacing: 0.04em; }
+  .boot-bar { width: min(360px, 70vw); height: 2px; background: var(--line); position: relative; overflow: hidden; }
+  .boot-bar i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: linear-gradient(90deg, var(--cyan-2), var(--cyan)); animation: bootfill 1.9s ease forwards; box-shadow: 0 0 12px var(--cyan-glow); }
+  @keyframes bootfill { to { width: 100%; } }
+  .boot-status { font-size: 10.5px; letter-spacing: 0.25em; color: var(--cyan-dim); text-transform: uppercase; }
+
+  .shell {
+    height: 100vh; height: 100dvh; display: grid; grid-template-rows: auto auto 1fr auto;
+    max-width: 1380px; margin: 0 auto;
+    border-left: 1px solid var(--line); border-right: 1px solid var(--line);
+    position: relative; z-index: 1;
+    background: linear-gradient(180deg, rgba(8,13,26,0.55), rgba(4,7,15,0.88));
+  }
+
+  /* corner brackets on shell */
+  .shell > .bracket { position: absolute; width: 18px; height: 18px; border: 1px solid var(--cyan-dim); z-index: 5; pointer-events: none; opacity: 0.5; }
+  .bracket.tl { top: 6px; left: 6px; border-right: none; border-bottom: none; }
+  .bracket.tr { top: 6px; right: 6px; border-left: none; border-bottom: none; }
+  .bracket.bl { bottom: 6px; left: 6px; border-right: none; border-top: none; }
+  .bracket.br { bottom: 6px; right: 6px; border-left: none; border-top: none; }
+
+  /* ---- header ---- */
+  header {
+    border-bottom: 1px solid var(--line); padding: 12px 22px;
+    display: flex; align-items: center; justify-content: space-between;
+    background: linear-gradient(180deg, var(--bg-soft), transparent); gap: 12px;
+  }
+  .brand-wrap { display: flex; align-items: baseline; gap: 16px; min-width: 0; }
+  .brand { font-weight: 700; letter-spacing: 0.48em; color: var(--cyan); text-shadow: 0 0 18px var(--cyan-glow); font-size: 17px; white-space: nowrap; }
+  .brand .blink { animation: blink 1.1s steps(1) infinite; color: var(--paper); }
+  @keyframes blink { 50% { opacity: 0; } }
+  .coord { color: var(--ink-dim); font-size: 10px; letter-spacing: 0.2em; white-space: nowrap; }
+  .head-right { display: flex; align-items: center; gap: 16px; }
+  .tagline { color: var(--ink-dim); font-size: 11px; letter-spacing: 0.15em; white-space: nowrap; }
+  .tagline em { font-family: 'Fraunces', serif; font-style: italic; font-size: 16px; color: var(--cyan); letter-spacing: 0; }
+  .x-link { width: 32px; height: 32px; flex: none; display: grid; place-items: center; border: 1px solid var(--line-bright); color: var(--ink); transition: all 0.18s; text-decoration: none; }
+  .x-link:hover, .x-link:active { border-color: var(--cyan); color: var(--cyan); box-shadow: 0 0 16px var(--cyan-glow); transform: translateY(-1px); }
+  .x-link svg { width: 14px; height: 14px; fill: currentColor; }
+
+  /* ---- HUD stat strip ---- */
+  .hud {
+    display: grid; grid-template-columns: repeat(4, 1fr); border-bottom: 1px solid var(--line);
+    background: rgba(7,12,24,0.6);
+  }
+  .hud .cell { padding: 8px 18px; border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 1px; }
+  .hud .cell:last-child { border-right: none; }
+  .hud .k { font-size: 8.5px; letter-spacing: 0.28em; color: var(--cyan-dim); text-transform: uppercase; }
+  .hud .v { font-size: 13px; color: var(--paper); letter-spacing: 0.04em; }
+  .hud .v small { color: var(--ink-dim); font-size: 10px; }
+
+  .tabs { display: none; }
+
+  /* ---- main ---- */
+  main { display: grid; grid-template-columns: 290px 1fr 1fr; overflow: hidden; }
+
+  .section-label {
+    color: var(--cyan-dim); font-size: 9.5px; letter-spacing: 0.3em; text-transform: uppercase;
+    margin-bottom: 14px; display: flex; align-items: center; gap: 10px;
+  }
+  .section-label::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+  .section-label .tag { border: 1px solid var(--line-bright); padding: 1px 7px; font-size: 8.5px; color: var(--ink-dim); letter-spacing: 0.15em; }
+
+  /* ---- history rail ---- */
+  .history { border-right: 1px solid var(--line); padding: 20px 16px; overflow-y: auto; background: rgba(5,9,18,0.45); display: flex; flex-direction: column; }
+  .hist-empty { color: var(--ink-dim); font-size: 12.5px; font-style: italic; font-family: 'Fraunces', serif; }
+  .hist-empty .ghost { display: block; margin-top: 14px; font-family: 'IBM Plex Mono'; font-style: normal; font-size: 10px; color: var(--line-bright); white-space: pre; line-height: 1.3; }
+  .hist-item {
+    border: 1px solid var(--line); border-left: 2px solid var(--cyan-dim); padding: 10px 12px; margin-bottom: 9px;
+    cursor: pointer; transition: all 0.16s; background: rgba(10,16,32,0.5); animation: slidein 0.35s ease; position: relative;
+  }
+  @keyframes slidein { from { opacity: 0; transform: translateX(-10px); } }
+  .hist-item:hover, .hist-item:active { border-color: var(--line-bright); border-left-color: var(--cyan); background: rgba(16,24,46,0.75); transform: translateX(2px); }
+  .hist-item .hidx { color: var(--cyan-dim); font-size: 9px; letter-spacing: 0.2em; display: flex; justify-content: space-between; }
+  .hist-item .hidx b { color: var(--green); font-weight: 400; }
+  .hist-item .hname { color: var(--paper); font-size: 12px; margin: 3px 0; word-break: break-word; line-height: 1.4; }
+  .hist-item .htime { color: var(--ink-dim); font-size: 9.5px; }
+  .hist-count { margin-left: auto; color: var(--ink-dim); }
+
+  /* ---- console ---- */
+  .console { padding: 20px; overflow-y: auto; display: flex; flex-direction: column; }
+  #log { flex: 1; }
+  .log-line { white-space: pre-wrap; word-break: break-word; opacity: 0; animation: fadein 0.3s forwards; }
+  @keyframes fadein { to { opacity: 1; } }
+  .log-line .ts { color: var(--ink-dim); }
+  .log-line .ok { color: var(--green); }
+  .log-line .warn { color: var(--amber); }
+  .log-line .err { color: var(--red); }
+  .log-line .you { color: var(--cyan); text-shadow: 0 0 8px var(--cyan-glow); }
+  .log-line .sys { color: var(--ink-dim); }
+
+  .prompt-row { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 16px; }
+  .prompt-field {
+    display: flex; align-items: flex-start; gap: 10px; background: rgba(3,6,13,0.75);
+    border: 1px solid var(--line-bright); padding: 13px 15px; transition: border-color 0.2s, box-shadow 0.2s; position: relative;
+  }
+  .prompt-field:focus-within { border-color: var(--cyan); box-shadow: 0 0 0 1px var(--cyan), 0 0 26px var(--cyan-glow); }
+  .caret { color: var(--cyan); font-weight: 700; user-select: none; padding-top: 1px; animation: blink 1.1s steps(1) infinite; }
+  #input { flex: 1; background: transparent; border: none; outline: none; color: var(--ink); font-family: inherit; font-size: 15px; resize: none; line-height: 1.5; max-height: 120px; }
+  #input::placeholder { color: var(--ink-dim); }
+
+  .actions { margin-top: 12px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  button.run {
+    background: linear-gradient(135deg, var(--cyan), var(--cyan-2)); color: #03070f; border: none; font-family: inherit; font-weight: 700;
+    letter-spacing: 0.14em; padding: 11px 24px; cursor: pointer; text-transform: uppercase; font-size: 12px;
+    transition: transform 0.1s, box-shadow 0.2s; position: relative; overflow: hidden;
+  }
+  button.run:hover { box-shadow: 0 0 26px var(--cyan-glow); }
+  button.run:active { transform: translateY(1px); }
+  button.run:disabled { opacity: 0.4; cursor: wait; box-shadow: none; }
+
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip { border: 1px solid var(--line); color: var(--ink-dim); padding: 6px 12px; font-size: 11px; cursor: pointer; transition: all 0.15s; background: transparent; font-family: inherit; }
+  .chip:hover, .chip:active { border-color: var(--cyan); color: var(--cyan); transform: translateY(-1px); }
+  .hint { color: var(--ink-dim); font-size: 10.5px; margin-top: 10px; }
+
+  /* ---- preview ---- */
+  .preview { border-left: 1px solid var(--line); background: var(--panel); display: flex; flex-direction: column; overflow: hidden; }
+  .preview-bar { border-bottom: 1px solid var(--line); padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; font-size: 10.5px; color: var(--ink-dim); letter-spacing: 0.18em; }
+  .dots { display: flex; gap: 6px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; border: 1px solid var(--line-bright); }
+  .dot.r { background: rgba(255,122,138,0.4); } .dot.y { background: rgba(255,207,111,0.4); } .dot.g { background: rgba(127,255,196,0.4); }
+
+  .frame-wrap { flex: 1; position: relative; overflow: hidden; }
+  iframe { width: 100%; height: 100%; border: none; background: #fff; display: block; }
+  /* materialize animation */
+  .frame-wrap.materialize iframe { animation: materialize 0.7s cubic-bezier(.2,.8,.2,1); }
+  @keyframes materialize { from { opacity: 0; filter: brightness(2) blur(8px); transform: scale(1.04); } to { opacity: 1; filter: none; transform: none; } }
+  .scanline-overlay { position: absolute; inset: 0; pointer-events: none; opacity: 0; }
+  .frame-wrap.materialize .scanline-overlay { animation: scanpass 0.7s ease; }
+  @keyframes scanpass { 0% { opacity: 1; background: linear-gradient(180deg, transparent, var(--cyan-glow) 50%, transparent); background-size: 100% 40px; } 100% { opacity: 0; } }
+
+  .preview-empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--ink-dim); gap: 14px; padding: 30px; text-align: center; }
+  .preview-empty .ascii { color: var(--cyan-dim); font-size: 11px; line-height: 1.25; white-space: pre; animation: pulse 3s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: 0.5; } }
+  .preview-empty em { font-family: 'Fraunces', serif; font-style: italic; font-size: 19px; color: var(--ink); }
+
+  .dl-btn { background: transparent; border: 1px solid var(--cyan); color: var(--cyan); font-family: inherit; font-size: 10.5px; letter-spacing: 0.14em; padding: 5px 12px; cursor: pointer; text-transform: uppercase; transition: all 0.15s; }
+  .dl-btn:hover, .dl-btn:active { background: var(--cyan); color: #03070f; }
+  .dl-btn:disabled { opacity: 0.3; cursor: default; border-color: var(--line); color: var(--ink-dim); }
+
+  .progress { height: 2px; background: var(--line); position: relative; overflow: hidden; display: none; }
+  .progress.on { display: block; }
+  .progress::after { content: ""; position: absolute; inset: 0; width: 40%; background: linear-gradient(90deg, transparent, var(--cyan), transparent); animation: load 1.1s linear infinite; }
+  @keyframes load { from { left: -40%; } to { left: 100%; } }
+
+  footer { border-top: 1px solid var(--line); padding: 9px 22px; font-size: 9.5px; letter-spacing: 0.16em; color: var(--ink-dim); display: flex; justify-content: space-between; align-items: center; background: var(--bg-soft); gap: 10px; }
+  footer .live { display: flex; align-items: center; gap: 7px; }
+  footer .pulse-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px var(--green); animation: blip 1.6s ease-in-out infinite; }
+  @keyframes blip { 50% { opacity: 0.25; } }
+  footer a { color: var(--cyan); text-decoration: none; transition: all 0.15s; }
+  footer a:hover { text-shadow: 0 0 10px var(--cyan-glow); }
+
+  .spin::after { content: "▊"; animation: spin 0.6s steps(8) infinite; }
+  @keyframes spin { 50% { opacity: 0.2; } }
+
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--line); }
+  ::-webkit-scrollbar-thumb:hover { background: var(--line-bright); }
+
+  /* ======= MOBILE ======= */
+  @media (max-width: 760px) {
+    body { font-size: 13px; }
+    .shell { border-left: none; border-right: none; grid-template-rows: auto auto auto 1fr auto; }
+    .shell > .bracket { display: none; }
+    header { flex-wrap: wrap; padding: 10px 16px; gap: 8px; }
+    .brand-wrap { gap: 10px; flex: 1; }
+    .brand { font-size: 15px; letter-spacing: 0.36em; }
+    .coord, .tagline { display: none; }
+    .hud { grid-template-columns: repeat(2, 1fr); }
+    .hud .cell:nth-child(2) { border-right: none; }
+    .hud .cell { padding: 7px 14px; }
+
+    .tabs { display: grid; grid-template-columns: repeat(3, 1fr); border-bottom: 1px solid var(--line); background: var(--bg-soft); }
+    .tab { padding: 13px 6px; text-align: center; font-size: 10.5px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--ink-dim); border-right: 1px solid var(--line); cursor: pointer; transition: all 0.18s; background: transparent; font-family: inherit; }
+    .tab:last-child { border-right: none; }
+    .tab.active { color: var(--cyan); background: rgba(111,227,255,0.06); box-shadow: inset 0 -2px 0 var(--cyan); }
+    .tab .badge { color: var(--cyan-dim); font-size: 9px; }
+
+    main { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+    .history, .console, .preview { display: none; }
+    .history.show, .console.show, .preview.show { display: flex; }
+    .history { border-right: none; } .preview { border-left: none; }
+    .console { padding: 16px; }
+    .chips { width: 100%; }
+    button.run { flex: 1; min-width: 110px; padding: 13px; }
+  }
+</style>
+</head>
+<body>
+<canvas id="stars"></canvas>
+<div class="sweep"></div>
+
+<!-- BOOT -->
+<div id="boot">
+  <div class="boot-logo">STRIDE<span class="scan">STRIDE</span></div>
+  <div class="boot-sub">describe it, it walks.</div>
+  <div class="boot-bar"><i></i></div>
+  <div class="boot-status" id="boot-status">cold start…</div>
+</div>
+
+<div class="shell">
+  <span class="bracket tl"></span><span class="bracket tr"></span><span class="bracket bl"></span><span class="bracket br"></span>
+
+  <header>
+    <div class="brand-wrap">
+      <span class="brand">STRIDE<span class="blink">_</span></span>
+      <span class="coord">lat 00.000 · lon 00.000 · sheet 01</span>
+    </div>
+    <div class="head-right">
+      <div class="tagline">app foundry &mdash; <em>describe it, it walks.</em></div>
+      <a class="x-link" href="https://x.com/StrideAgent" target="_blank" rel="noopener" title="@StrideAgent">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"></path></svg>
+      </a>
+    </div>
+  </header>
+
+  <!-- HUD -->
+  <div class="hud">
+    <div class="cell"><span class="k">status</span><span class="v" style="color:var(--green)">● operational</span></div>
+    <div class="cell"><span class="k">builds</span><span class="v" id="hud-builds">00 <small>forged</small></span></div>
+    <div class="cell"><span class="k">engine</span><span class="v">claude · sonnet</span></div>
+    <div class="cell"><span class="k">uptime</span><span class="v" id="hud-uptime">00:00</span></div>
+  </div>
+
+  <!-- mobile tabs -->
+  <div class="tabs">
+    <button class="tab" data-pane="history">Log <span class="badge" id="tabcount">00</span></button>
+    <button class="tab active" data-pane="console">Build</button>
+    <button class="tab" data-pane="preview">Output</button>
+  </div>
+
+  <main>
+    <aside class="history">
+      <div class="section-label">build log <span class="hist-count" id="hcount">00</span></div>
+      <div id="hist"><div class="hist-empty">nothing forged yet.<span class="ghost"> ┌────────┐
+ │ ·· ··· │
+ │ ······ │
+ └────────┘</span></div></div>
+    </aside>
+
+    <section class="console show">
+      <div class="section-label">session <span class="tag">live</span></div>
+      <div id="log"></div>
+      <div class="prompt-row">
+        <div class="prompt-field">
+          <span class="caret">&gt;</span>
+          <textarea id="input" rows="1" placeholder="describe the app… e.g. a tip calculator with split-by-people"></textarea>
+        </div>
+        <div class="actions">
+          <button class="run" id="run">⏎ build</button>
+          <div class="chips">
+            <button class="chip" data-p="A pomodoro timer with start, pause, reset and a session counter">pomodoro</button>
+            <button class="chip" data-p="A tip calculator that splits the bill across N people">tip split</button>
+            <button class="chip" data-p="A markdown note pad with live preview side by side">notepad</button>
+            <button class="chip" data-p="A color palette generator that creates 5 harmonious colors with hex codes I can copy">palette</button>
+            <button class="chip" data-p="A simple drum machine with a step sequencer and play button">drum machine</button>
+          </div>
+        </div>
+        <div class="hint">↳ Stride asks Claude to forge a complete, self-contained app and runs it live.</div>
+      </div>
+    </section>
+
+    <section class="preview">
+      <div class="preview-bar">
+        <div class="dots"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span></div>
+        <span id="preview-title">output // idle</span>
+        <button class="dl-btn" id="download" disabled>↓ save .html</button>
+      </div>
+      <div class="progress" id="progress"></div>
+      <div class="frame-wrap" id="framewrap">
+        <div class="preview-empty" id="empty">
+<div class="ascii">  ╔══════════════╗
+  ║ ┌──┐  ┌────┐ ║
+  ║ │▷ │  │░░░░│ ║
+  ║ └──┘  └────┘ ║
+  ║ ▔▔▔▔▔▔▔▔▔▔▔▔ ║
+  ╚══════════════╝</div>
+          <em>no app yet</em>
+          <div style="font-size:11px; letter-spacing:0.08em;">type a description, hit build, and watch it materialize</div>
+        </div>
+        <iframe id="frame" style="display:none;"></iframe>
+        <div class="scanline-overlay"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <span>STRIDE v0.4</span>
+    <span class="live"><span class="pulse-dot"></span><span id="clock">--:--:--</span></span>
+    <span>powered by <a href="https://x.com/NousResearch" target="_blank" rel="noopener">@NousResearch</a></span>
+  </footer>
+</div>
+
+<script>
+  // ---- starfield ----
+  const cv = document.getElementById('stars'), cx = cv.getContext('2d');
+  let stars = [];
+  function resize() { cv.width = innerWidth; cv.height = innerHeight; stars = Array.from({length: Math.min(90, Math.floor(innerWidth/16))}, () => ({ x: Math.random()*cv.width, y: Math.random()*cv.height, r: Math.random()*1.3+0.2, a: Math.random(), s: Math.random()*0.02+0.004 })); }
+  resize(); addEventListener('resize', resize);
+  function drawStars() {
+    cx.clearRect(0,0,cv.width,cv.height);
+    for (const s of stars) { s.a += s.s; const op = (Math.sin(s.a)*0.4+0.5); cx.fillStyle = `rgba(150,200,255,${op*0.7})`; cx.fillRect(s.x, s.y, s.r, s.r); }
+    requestAnimationFrame(drawStars);
+  }
+  drawStars();
+
+  // ---- boot ----
+  const bootEl = document.getElementById('boot'), bootStatus = document.getElementById('boot-status');
+  const bsteps = ['mounting kernel…','linking claude engine…','calibrating renderer…','ready'];
+  bsteps.forEach((s,i)=> setTimeout(()=> bootStatus.textContent = s, 350 + i*420));
+  setTimeout(()=> bootEl.classList.add('gone'), 2200);
+
+  const logEl = document.getElementById('log');
+  const input = document.getElementById('input');
+  const runBtn = document.getElementById('run');
+  const frame = document.getElementById('frame');
+  const frameWrap = document.getElementById('framewrap');
+  const empty = document.getElementById('empty');
+  const previewTitle = document.getElementById('preview-title');
+  const downloadBtn = document.getElementById('download');
+  const histEl = document.getElementById('hist');
+  const hcountEl = document.getElementById('hcount');
+  const tabcountEl = document.getElementById('tabcount');
+  const hudBuilds = document.getElementById('hud-builds');
+  const hudUptime = document.getElementById('hud-uptime');
+  const progress = document.getElementById('progress');
+  const clockEl = document.getElementById('clock');
+  let lastHtml = '';
+  const history = [];
+  const startTime = Date.now();
+
+  function tick() {
+    clockEl.textContent = new Date().toTimeString().slice(0,8);
+    const up = Math.floor((Date.now()-startTime)/1000);
+    hudUptime.textContent = String(Math.floor(up/60)).padStart(2,'0')+':'+String(up%60).padStart(2,'0');
+  }
+  tick(); setInterval(tick, 1000);
+
+  function ts() { return new Date().toTimeString().slice(0,8); }
+  function log(html, cls='') {
+    const line = document.createElement('div');
+    line.className = 'log-line ' + cls;
+    line.innerHTML = `<span class="ts">[${ts()}]</span> ` + html;
+    logEl.appendChild(line);
+    const c = document.querySelector('.console'); c.scrollTop = c.scrollHeight;
+    return line;
+  }
+
+  setTimeout(()=> {
+    const boot = [
+      ['<span class="sys">stride kernel online.</span>', 0],
+      ['<span class="ok">✓</span> <span class="sys">codegen + sandbox ready</span>', 350],
+      ['<span class="warn">»</span> awaiting instruction. what shall we build?', 700],
+    ];
+    boot.forEach(([t,d])=> setTimeout(()=> log(t), d));
+  }, 2300);
+
+  const panes = { history: document.querySelector('.history'), console: document.querySelector('.console'), preview: document.querySelector('.preview') };
+  function showPane(name) {
+    Object.entries(panes).forEach(([k, el]) => el.classList.toggle('show', k === name));
+    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.pane === name));
+  }
+  document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => showPane(t.dataset.pane)));
+
+  document.querySelectorAll('.chip').forEach(c => c.addEventListener('click', () => { input.value = c.dataset.p; input.focus(); autosize(); }));
+  function autosize() { input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 120) + 'px'; }
+  input.addEventListener('input', autosize);
+  input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); build(); } });
+  runBtn.addEventListener('click', build);
+
+  function extractHtml(text) { let t = text.trim(); const f = t.match(/```(?:html)?\s*([\s\S]*?)```/i); if (f) t = f[1].trim(); return t; }
+
+  function renderHistory() {
+    const n = String(history.length).padStart(2, '0');
+    hcountEl.textContent = n; tabcountEl.textContent = n; hudBuilds.innerHTML = n + ' <small>forged</small>';
+    if (!history.length) return;
+    histEl.innerHTML = '';
+    history.forEach((h, i) => {
+      const item = document.createElement('div');
+      item.className = 'hist-item';
+      const idx = String(history.length - i).padStart(2, '0');
+      const short = h.desc.length > 58 ? h.desc.slice(0, 58) + '…' : h.desc;
+      item.innerHTML = `<div class="hidx"><span>BUILD ${idx}</span><b>${(h.bytes/1024).toFixed(1)}kb</b></div><div class="hname">${short.replace(/</g,'&lt;')}</div><div class="htime">${h.time}</div>`;
+      item.addEventListener('click', () => { loadFromHistory(h); if (innerWidth <= 760) showPane('preview'); });
+      histEl.appendChild(item);
+    });
+  }
+
+  function materialize(html, label) {
+    lastHtml = html; frame.srcdoc = html; frame.style.display = 'block'; empty.style.display = 'none';
+    frameWrap.classList.remove('materialize'); void frameWrap.offsetWidth; frameWrap.classList.add('materialize');
+    previewTitle.textContent = label; downloadBtn.disabled = false;
+  }
+
+  function loadFromHistory(h) {
+    materialize(h.html, 'output // restored');
+    log(`<span class="ok">↺</span> restored build from log — <span class="sys">${h.time}</span>`);
+  }
+
+  async function build() {
+    const desc = input.value.trim();
+    if (!desc) { log('<span class="err">✗</span> nothing to build — type a description first.'); return; }
+    runBtn.disabled = true; progress.classList.add('on');
+    if (innerWidth <= 760) showPane('preview');
+    log(`<span class="you">&gt; ${desc.replace(/</g,'&lt;')}</span>`);
+    const working = log('<span class="warn spin">forging app</span>');
+    previewTitle.textContent = 'output // building…';
+
+    const sys = `You are a code generator inside an app called Stride. The user describes an app in plain language. You output ONE complete, self-contained HTML document (with inline <style> and <script>, no external dependencies) implementing exactly what they asked. The app must be fully functional, clean, and visually pleasant with a modern look. Use a tasteful design. Do NOT include any explanation, commentary, or markdown — output ONLY the raw HTML document beginning with <!DOCTYPE html>.`;
+
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 4000, system: sys, messages: [{ role: "user", content: desc }] })
+      });
+      const data = await res.json();
+      const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n');
+      const html = extractHtml(text);
+      if (!html || !/<\w+/.test(html)) throw new Error('no usable output');
+
+      working.querySelector('.spin').classList.remove('spin');
+      working.innerHTML = `<span class="ts">[${ts()}]</span> <span class="ok">✓</span> app forged — ${html.length} bytes, rendering…`;
+
+      materialize(html, 'output // live');
+      history.unshift({ desc, html, time: ts(), bytes: html.length });
+      renderHistory();
+      log('<span class="ok">✓</span> render complete. saved to build log. refine it, or save the file.');
+    } catch (err) {
+      working.querySelector('.spin')?.classList.remove('spin');
+      working.innerHTML = `<span class="ts">[${ts()}]</span> <span class="err">✗ build failed: ${(err.message||err).toString().replace(/</g,'&lt;')}</span>`;
+      previewTitle.textContent = 'output // error';
+    } finally {
+      runBtn.disabled = false; progress.classList.remove('on'); input.value = ''; autosize();
+    }
+  }
+
+  downloadBtn.addEventListener('click', () => {
+    if (!lastHtml) return;
+    const blob = new Blob([lastHtml], { type: 'text/html' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'stride-app.html'; a.click();
+    log('<span class="ok">✓</span> saved to disk as stride-app.html');
+  });
+</script>
+</body>
+</html>
