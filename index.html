@@ -7,17 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
 
-<!-- Privy Auth via esm.sh -->
-<script type="importmap">
-{
-  "imports": {
-    "react": "https://esm.sh/react@18.3.1",
-    "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
-    "react-dom": "https://esm.sh/react-dom@18.3.1",
-    "@privy-io/react-auth": "https://esm.sh/@privy-io/react-auth@2.4.1"
-  }
-}
-</script>
+<!-- No importmap — direct ESM URLs avoid peer-dep resolution failures -->
 
 <style>
   :root {
@@ -985,7 +975,7 @@
       <a href="#how" class="hidem">// how</a>
       <a href="#engine" class="hidem">// engine</a>
       <a href="#" id="nav-open" class="hidem">terminal</a>
-      <div id="privy-login-root"><button class="privy-btn" id="privy-fallback">[ connect ]</button></div>
+      <div id="privy-login-root"><button class="privy-btn" id="privy-fallback">[ LOGIN ]</button></div>
       <a class="x-link" href="https://x.com/StrideAgent" target="_blank" rel="noopener" title="@StrideAgent">
         <svg viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
       </a>
@@ -1207,75 +1197,68 @@
   </div>
 </div>
 
-<!-- =========== PRIVY AUTH (ESM) =========== -->
+<!-- =========== PRIVY AUTH =========== -->
 <script type="module">
-import React from 'react';
-import { createRoot } from 'react-dom/client';
-import { PrivyProvider, usePrivy } from '@privy-io/react-auth';
+/*
+ * Why direct URLs + ?deps=:
+ * - importmap + @privy-io/react-auth@2.x fails because wagmi/viem/tanstack
+ *   are missing from the map → bare specifier can't resolve at runtime.
+ * - Using direct esm.sh URLs with ?deps= pins React to the SAME URL in both
+ *   our code and inside Privy → single React instance → hooks work correctly.
+ * - Privy v1.x only needs react + react-dom (no wagmi for email/google login).
+ */
+(async () => {
+  const container = document.getElementById('privy-login-root');
+  if (!container) return;
 
-function LoginButton() {
-  const { ready, authenticated, user, login, logout } = usePrivy();
-
-  if (!ready) {
-    return React.createElement('button', {
-      className: 'privy-btn',
-      disabled: true,
-      style: { opacity: 0.5 }
-    }, '...');
-  }
-
-  if (authenticated) {
-    const label = user?.email?.address
-      ? user.email.address.split('@')[0]
-      : user?.wallet?.address
-        ? user.wallet.address.slice(0,6) + '…' + user.wallet.address.slice(-4)
-        : 'connected';
-    return React.createElement('button', {
-      className: 'privy-btn connected',
-      onClick: logout,
-      title: 'Click to disconnect'
-    },
-      React.createElement('span', { className: 'privy-status-dot' }),
-      label
+  try {
+    const { default: React } = await import('https://esm.sh/react@18.2.0');
+    const { createRoot }     = await import('https://esm.sh/react-dom@18.2.0/client');
+    const { PrivyProvider, usePrivy } = await import(
+      'https://esm.sh/@privy-io/react-auth@1.88.4?deps=react@18.2.0,react-dom@18.2.0'
     );
-  }
 
-  return React.createElement('button', {
-    className: 'privy-btn',
-    onClick: login
-  }, '[ connect ]');
-}
+    const h = React.createElement;
 
-function PrivyApp() {
-  return React.createElement(
-    PrivyProvider,
-    {
-      appId: 'cmq3wjctd01r80cikoa8eegu9',
-      clientId: 'client-WY6aFJsU3aED5TnPyxuMzZ2BMzCbdXtAPzGxDMJvHKcTw',
-      config: {
-        appearance: {
-          theme: 'dark',
-          accentColor: '#ffb800',
-          logo: '',
-          showWalletLoginFirst: false,
-        },
-        loginMethods: ['email', 'google', 'wallet'],
-        embeddedWallets: {
-          createOnLogin: 'users-without-wallets',
-        },
+    function LoginButton() {
+      const { ready, authenticated, user, login, logout } = usePrivy();
+
+      if (!ready) return h('button', { className: 'privy-btn', disabled: true, style: { opacity: .5 } }, '...');
+
+      if (authenticated) {
+        const label = user?.email?.address
+          ? user.email.address.split('@')[0]
+          : user?.wallet?.address
+            ? user.wallet.address.slice(0, 6) + '…' + user.wallet.address.slice(-4)
+            : 'user';
+        return h('button',
+          { className: 'privy-btn connected', onClick: logout, title: 'Click to disconnect' },
+          h('span', { className: 'privy-status-dot' }),
+          label
+        );
       }
-    },
-    React.createElement(LoginButton)
-  );
-}
 
-const container = document.getElementById('privy-login-root');
-if (container) {
-  // remove plain-HTML fallback, mount React
-  container.innerHTML = '';
-  const root = createRoot(container);
-  root.render(React.createElement(PrivyApp));
-}
+      return h('button', { className: 'privy-btn', onClick: login }, '[ LOGIN ]');
+    }
+
+    function App() {
+      return h(PrivyProvider, {
+        appId: 'cmq3wjctd01r80cikoa8eegu9',
+        config: {
+          appearance: { theme: 'dark', accentColor: '#ffb800', showWalletLoginFirst: false },
+          loginMethods: ['email', 'google'],
+        }
+      }, h(LoginButton));
+    }
+
+    container.innerHTML = '';
+    createRoot(container).render(h(App));
+
+  } catch (err) {
+    console.error('[Privy] Failed to load:', err);
+    /* fallback [ LOGIN ] button stays in DOM — user sees it, clicks do nothing */
+  }
+})();
 </script>
 
 <!-- =========== STRIDE TERMINAL LOGIC =========== -->
